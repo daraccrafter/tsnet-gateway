@@ -32,6 +32,8 @@ func main() {
 	routesArg := flag.String("routes", "", "Comma-separated route mappings (e.g. '/api/=http://localhost:9696,/app/=http://localhost:8081')")
 	routesFile := flag.String("routes-file", "", "Path to a JSON file defining route mappings")
 	proxyType := flag.String("type", "gateway", "Specify mode: rproxy (reverse proxy), proxy (outgoing proxy), or gateway (both)")
+	rproxyPort := flag.Int("rproxy-port", 8443, "Port to listen on for reverse proxy")
+	hostname := flag.String("hostname", "tsnet-gateway", "Hostname to use for the Tailscale node")
 	flag.Parse()
 
 	if *authKey == "" {
@@ -44,7 +46,7 @@ func main() {
 		}
 	}
 	srv = &tsnet.Server{
-		Hostname: "tailscale-proxy",
+		Hostname: *hostname,
 		AuthKey:  *authKey,
 		Logf:     log.Printf,
 		Dir:      fmt.Sprintf("%s/Tailscale", *baseDir),
@@ -58,7 +60,7 @@ func main() {
 		go startProxy(*proxyPort)
 	}
 	if *proxyType == "rproxy" || *proxyType == "gateway" {
-		go startTLSListener()
+		go startTLSListener(*rproxyPort)
 	}
 
 	sigChan := make(chan os.Signal, 1)
@@ -109,8 +111,9 @@ func startProxy(proxyPort int) {
 	}
 }
 
-func startTLSListener() {
-	ln, err := srv.ListenTLS("tcp", ":443")
+func startTLSListener(rproxyPort int) {
+
+	ln, err := srv.ListenTLS("tcp", fmt.Sprintf(":%d", rproxyPort))
 	if err != nil {
 		log.Fatalf("Failed to start TLS listener: %v", err)
 	}
