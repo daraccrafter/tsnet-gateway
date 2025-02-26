@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 
 	"tailscale.com/tsnet"
@@ -35,6 +36,21 @@ func main() {
 	rproxyPort := flag.Int("rproxy-port", 8443, "Port to listen on for reverse proxy")
 	hostname := flag.String("hostname", "tsnet-gateway", "Hostname to use for the Tailscale node")
 	flag.Parse()
+
+	logDir := filepath.Join(*baseDir, "tsnet-gateway", "logs")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		log.Fatalf("Failed to create log directory: %v", err)
+	}
+
+	// Set up logging to both console and file
+	logFilePath := filepath.Join(logDir, "tsnet-gateway.log")
+	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatalf("Failed to open log file: %v", err)
+	}
+	defer logFile.Close()
+
+	log.SetOutput(io.MultiWriter(os.Stdout, logFile))
 
 	if *authKey == "" {
 		log.Fatal("Error: --authkey is required")

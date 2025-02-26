@@ -1,12 +1,10 @@
 Tailscale/
+tsnet-gateway/
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-
 *.test
-
 *.out
-
 .env
