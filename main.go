@@ -20,6 +20,8 @@ import (
 
 var srv *tsnet.Server
 var routeConfig = make(map[string]string)
+var authKey *string
+var baseDir *string
 
 func main() {
 	defaultBaseDir, err := os.Getwd()
@@ -27,17 +29,18 @@ func main() {
 		log.Fatalf("Failed to get current directory: %v", err)
 	}
 
-	authKey := flag.String("authkey", "", "Tailscale auth key")
-	baseDir := flag.String("base", defaultBaseDir, "Base directory for Tailscale data")
+	authKey = flag.String("authkey", "", "Tailscale auth key")
+	baseDir = flag.String("base", defaultBaseDir, "Base directory for Tailscale data")
 	proxyPort := flag.Int("proxy-port", 8080, "Port to listen on")
 	routesArg := flag.String("routes", "", "Comma-separated route mappings (e.g. '/api/=http://localhost:9696,/app/=http://localhost:8081')")
 	routesFile := flag.String("routes-file", "", "Path to a JSON file defining route mappings")
 	proxyType := flag.String("type", "gateway", "Specify mode: rproxy (reverse proxy), proxy (outgoing proxy), or gateway (both)")
 	rproxyPort := flag.Int("rproxy-port", 8443, "Port to listen on for reverse proxy")
+	adminServerPort := flag.Int("admin-port", 8081, "Port to listen on for admin server")
 	hostname := flag.String("hostname", "tsnet-gateway", "Hostname to use for the Tailscale node")
 	flag.Parse()
 
-	logDir := filepath.Join(*baseDir, "tsnet-gateway", "logs")
+	logDir := filepath.Join(*baseDir, "Tailscale", "tsnet-gateway", "logs")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		log.Fatalf("Failed to create log directory: %v", err)
 	}
@@ -78,6 +81,8 @@ func main() {
 	if *proxyType == "rproxy" || *proxyType == "gateway" {
 		go startTLSListener(*rproxyPort)
 	}
+
+	go startAdminServer(*adminServerPort)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
@@ -128,7 +133,6 @@ func startProxy(proxyPort int) {
 }
 
 func startTLSListener(rproxyPort int) {
-
 	ln, err := srv.ListenTLS("tcp", fmt.Sprintf(":%d", rproxyPort))
 	if err != nil {
 		log.Fatalf("Failed to start TLS listener: %v", err)
@@ -232,4 +236,50 @@ func handleHTTPProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	io.Copy(w, destConn)
+}
+
+func restartServer(newHostname string) error {
+	// Stop the existing server
+	if srv != nil {
+		srv.Close()
+	}
+
+	// Reinitialize the server with the new hostname
+	srv = &tsnet.Server{
+		Hostname: newHostname,
+		AuthKey:  *authKey,
+		Logf:     log.Printf,
+		Dir:      fmt.Sprintf("%s/Tailscale", *baseDir),
+	}
+
+	// Start the server again
+	if err := srv.Start(); err != nil {
+		return fmt.Errorf("failed to restart Tailscale server: %v", err)
+	}
+
+	log.Printf("Tailscale server restarted with new hostname: %s", newHostname)
+	return nil
+}
+
+func startAdminServer(adminPort int) {
+	http.HandleFunc("/change-hostname", func(w http.ResponseWriter, r *http.Request) {
+		newHostname := r.URL.Query().Get("hostname")
+		if newHostname == "" {
+			http.Error(w, "hostname parameter is required", http.StatusBadRequest)
+			return
+		}
+
+		if err := restartServer(newHostname); err != nil {
+			http.Error(w, fmt.Sprintf("failed to change hostname: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		fmt.Fprintf(w, "Hostname changed to %s\n", newHostname)
+	})
+
+	log.Printf("Admin server started on http://localhost:%d", adminPort)
+	err := http.ListenAndServe(fmt.Sprintf("localhost:%d", adminPort), nil)
+	if err != nil {
+		log.Fatalf("Admin server failed: %v", err)
+	}
 }

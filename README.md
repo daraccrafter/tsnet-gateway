@@ -19,6 +19,7 @@ This is a **Tailscale-powered gateway** that can:
 | `--base`       | Base directory for Tailscale data. Defaults to current directory. |
 | `--rproxy-port`| Port for reverse proxy. Default `8443`|
 | `--hostname`| Hostname in the Tailnet. Default `tsnet-gateway`|
+| `--admin-port`| Port for admin server. Currently only to change hostname|
 
 ---
 
