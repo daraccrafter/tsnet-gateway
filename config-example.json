@@ -1,0 +1,5 @@
+{
+  "/api/": "http://localhost:9696",
+  "/app/": "http://localhost:8081",
+  "/auth/": "http://localhost:7070"
+}
