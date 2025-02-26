@@ -40,6 +40,7 @@ func main() {
 	hostname := flag.String("hostname", "tsnet-gateway", "Hostname to use for the Tailscale node")
 	flag.Parse()
 
+	tailscaleDir := filepath.Join(*baseDir, "Tailscale")
 	logDir := filepath.Join(*baseDir, "Tailscale", "tsnet-gateway", "logs")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		log.Fatalf("Failed to create log directory: %v", err)
@@ -68,7 +69,7 @@ func main() {
 		Hostname: *hostname,
 		AuthKey:  *authKey,
 		Logf:     log.Printf,
-		Dir:      fmt.Sprintf("%s/Tailscale", *baseDir),
+		Dir:      tailscaleDir,
 	}
 
 	if err := srv.Start(); err != nil {
