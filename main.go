@@ -39,14 +39,27 @@ func main() {
 	adminServerPort := flag.Int("admin-port", 8081, "Port to listen on for admin server")
 	hostname := flag.String("hostname", "tsnet-gateway", "Hostname to use for the Tailscale node")
 	flag.Parse()
-
+	hostnameConfigFile := filepath.Join(*baseDir, "Tailscale", "tsnet-gateway", "hostname.config")
 	tailscaleDir := filepath.Join(*baseDir, "Tailscale")
 	logDir := filepath.Join(*baseDir, "Tailscale", "tsnet-gateway", "logs")
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	if err := os.MkdirAll(logDir, 0644); err != nil {
 		log.Fatalf("Failed to create log directory: %v", err)
 	}
+	if *hostname != "tsnet-gateway" {
+		if err := writeHostnameToConfig(hostnameConfigFile, *hostname); err != nil {
+			log.Fatalf("Failed to write hostname to config file: %v", err)
+		}
+	}
 
-	// Set up logging to both console and file
+	savedHostname, err := readHostnameFromConfig(hostnameConfigFile)
+	if err != nil {
+		log.Fatalf("Failed to read hostname from config file: %v", err)
+	}
+
+	if savedHostname != "" {
+		*hostname = savedHostname
+	}
+
 	logFilePath := filepath.Join(logDir, "tsnet-gateway.log")
 	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -65,6 +78,7 @@ func main() {
 			log.Fatalf("Failed to load routes: %v", err)
 		}
 	}
+
 	srv = &tsnet.Server{
 		Hostname: *hostname,
 		AuthKey:  *authKey,
@@ -83,14 +97,27 @@ func main() {
 		go startTLSListener(*rproxyPort)
 	}
 
-	go startAdminServer(*adminServerPort)
+	go startAdminServer(*adminServerPort, hostnameConfigFile)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
 	<-sigChan
 	log.Println("Shutting down...")
 }
+func readHostnameFromConfig(configFile string) (string, error) {
+	data, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil // File doesn't exist, return empty hostname
+		}
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
 
+func writeHostnameToConfig(configFile, hostname string) error {
+	return ioutil.WriteFile(configFile, []byte(hostname), 0644)
+}
 func loadRoutes(routesArg, routesFile string) error {
 	if routesArg != "" {
 		pairs := strings.Split(routesArg, ",")
@@ -262,11 +289,16 @@ func restartServer(newHostname string) error {
 	return nil
 }
 
-func startAdminServer(adminPort int) {
+func startAdminServer(adminPort int, configFile string) {
 	http.HandleFunc("/change-hostname", func(w http.ResponseWriter, r *http.Request) {
 		newHostname := r.URL.Query().Get("hostname")
 		if newHostname == "" {
 			http.Error(w, "hostname parameter is required", http.StatusBadRequest)
+			return
+		}
+
+		if err := writeHostnameToConfig(configFile, newHostname); err != nil {
+			http.Error(w, fmt.Sprintf("failed to save hostname: %v", err), http.StatusInternalServerError)
 			return
 		}
 

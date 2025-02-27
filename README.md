@@ -1,6 +1,6 @@
 # Tsnet Gateway
 
-This is a **Tailscale-powered gateway** that can:
+This is a **Tailscale-powered gateway** which runs in userspace, that can:
 - Act as a **reverse proxy** to route requests inside your Tailnet.
 - Act as an **outgoing proxy** to forward external requests.
 - Run in **both modes** as a gateway.
