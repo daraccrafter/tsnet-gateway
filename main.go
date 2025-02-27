@@ -108,7 +108,7 @@ func readHostnameFromConfig(configFile string) (string, error) {
 	data, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", nil // File doesn't exist, return empty hostname
+			return "", nil
 		}
 		return "", err
 	}
@@ -267,12 +267,10 @@ func handleHTTPProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 func restartServer(newHostname string) error {
-	// Stop the existing server
 	if srv != nil {
 		srv.Close()
 	}
 
-	// Reinitialize the server with the new hostname
 	srv = &tsnet.Server{
 		Hostname: newHostname,
 		AuthKey:  *authKey,
@@ -280,7 +278,6 @@ func restartServer(newHostname string) error {
 		Dir:      fmt.Sprintf("%s/Tailscale", *baseDir),
 	}
 
-	// Start the server again
 	if err := srv.Start(); err != nil {
 		return fmt.Errorf("failed to restart Tailscale server: %v", err)
 	}
