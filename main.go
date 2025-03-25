@@ -39,9 +39,9 @@ func main() {
 	adminServerPort := flag.Int("admin-port", 8081, "Port to listen on for admin server")
 	hostname := flag.String("hostname", "tsnet-gateway", "Hostname to use for the Tailscale node")
 	flag.Parse()
-	hostnameConfigFile := filepath.Join(*baseDir, "Tailscale", "tsnet-gateway", "hostname.config")
+	hostnameConfigFile := filepath.Join(*baseDir, "tsnet-gateway", "hostname.config")
 	tailscaleDir := filepath.Join(*baseDir, "Tailscale")
-	logDir := filepath.Join(*baseDir, "Tailscale", "tsnet-gateway", "logs")
+	logDir := filepath.Join(*baseDir, "tsnet-gateway", "logs")
 	if err := os.MkdirAll(logDir, 0644); err != nil {
 		log.Fatalf("Failed to create log directory: %v", err)
 	}
